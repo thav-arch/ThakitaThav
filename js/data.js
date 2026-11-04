@@ -48,15 +48,15 @@ window.SITE = {
       "thumbnailSmall": "images/covers/farmville-2-event-design-sm.webp"
     },
     {
-      "slug": "dashboards-and-ui",
-      "title": "Dashboards and UI",
-      "description": "",
+      "slug": "interface-experience-design",
+      "title": "Interface and Experience Design",
+      "description": "Enterprise analytics dashboards for Coca-Cola, NAPA, Newell and other global brands, designed at ParallelConnect.",
       "subtitle": "Multiple Brand Database Dashboard Design",
       "year": "2024-2025",
-      "accent": "#888888",
-      "page": null,
-      "thumbnail": null,
-      "thumbnailSmall": null
+      "accent": "#9aa6ff",
+      "page": "projects/interface-experience-design.html",
+      "thumbnail": "images/covers/interface-experience-design.webp",
+      "thumbnailSmall": "images/covers/interface-experience-design-sm.webp"
     },
     {
       "slug": "powerui-library",

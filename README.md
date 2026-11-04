@@ -26,6 +26,7 @@ projects/             one HTML file per project page
   songs-of-saaja.html
   elevator-empire.html
   umbrella-man.html
+  interface-experience-design.html
 css/                  fonts.css · base.css · world.css (landing) · case.css (all project pages) · saaja.css · elevator-empire.css · umbrella-man.css
 js/data.js            ALL the content of the landing page: projects (title, year, cover…) and the Profile text
 js/main.js            starts everything
@@ -41,6 +42,7 @@ images/saaja/         images of the Songs of Saaja page
 images/elevator-empire/   the Elevator Empire artwork (p00-p15.webp slices), video posters, and video/ (put the 4 videos here)
 fonts/                Inter Tight, Marcellus SC, Jersey 25, Cabin Condensed (self-hosted)
 images/umbrella-man/  The Umbrella Man artwork slices (p00-p17.webp) and the photos that lift on hover (ph-*.webp)
+images/interface-experience-design/   dashboard screenshots for the Interface and Experience Design page
 images/intro/         three extra small images used in the scroll intro (with the project covers)
 resume/               the two résumé PDFs linked from the Resume menu (top right). Replace a file with one of the same name to update it
 ```
@@ -79,9 +81,10 @@ A project page can hold any number of looping videos; `js/video-manager.js` make
 
 ## Known state
 
-- **Songs of Saaja**, **Elevator Empire** and **The Umbrella Man** have project pages; the other three cards show "coming soon".
+- **Songs of Saaja**, **Elevator Empire**, **The Umbrella Man** and **Interface and Experience Design** have project pages; the other two cards show "coming soon".
 - **The Umbrella Man** trailer is a YouTube embed (muted autoplay, loop) at the top of `projects/umbrella-man.html`; to change the video, replace the ID `XIdpNlEZ2z4` (twice) in its `src`. The "Check out the Narrative Document" button becomes a link when you give the `<a class="um-btn">` an `href`.
 - **Elevator Empire** is the Figma page exported as artwork slices with live text and videos on top, scaled to the window width. On phones it is the same layout scaled down (pinch-zoom works); a dedicated phone layout needs the artwork cut into separate pieces.
-- *Dashboards and UI* and *PowerUI Library* have no cover image yet, so they show a generated placeholder card. Drop `<slug>.webp` and `<slug>-sm.webp` into `images/covers/` and fill `thumbnail` / `thumbnailSmall` in `js/data.js`.
+- **Interface and Experience Design** (`projects/interface-experience-design.html`) documents the ParallelConnect dashboard work (Coca-Cola, NAPA, marketing analytics, Newell). It is a fluid HTML page, not Figma slices; its images are in `images/interface-experience-design/`, styles in `css/interface-experience-design.css`, and the path explorer, image viewer and section index in `js/pages/interface-experience-design.js`.
+- *PowerUI Library* has no cover image yet, so it shows a generated placeholder card. Drop `<slug>.webp` and `<slug>-sm.webp` into `images/covers/` and fill `thumbnail` / `thumbnailSmall` in `js/data.js`.
 - Not included in this version: Playground, Journal, About, background music.
 - The old version of the site (Next.js + database + dashboard) is kept in Git history: commit `947d14a`.
