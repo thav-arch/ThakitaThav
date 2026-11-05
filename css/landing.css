@@ -31,9 +31,15 @@ a { color: inherit; text-decoration: none; }
 .skip:not(:focus):not(:hover) { color: rgba(255,255,255,.8); }
 
 /* ------------------------------------------------------------- scene / camera */
-.scene { position: relative; height: 330vh; }
+/* the intro is driven by js/landing.js, not by a scroll runway; while it plays the page is locked */
+html.intro-lock { overflow: hidden; }
+@media (min-width: 900px) {
+  html { overscroll-behavior: none; scrollbar-width: none; }
+  html::-webkit-scrollbar { display: none; }
+}
+.scene { position: relative; }
 .viewport {
-  position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden;
+  position: relative; height: 100vh; overflow: hidden;
   background-color: var(--bg);
   background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
   background-size: 36px 36px;
@@ -111,8 +117,6 @@ a { color: inherit; text-decoration: none; }
 .ovbox > img { position: absolute; max-width: none; }
 @keyframes pigeon { 0% { translate: 0 0; } 30% { translate: 14px -7px; rotate: 5deg; } 60% { translate: -10px 3px; rotate: -4deg; } 100% { translate: 0 0; rotate: 0deg; } }
 @keyframes sent { 0% { scale: 1; } 30% { scale: .92; rotate: -3deg; } 60% { scale: 1.06; rotate: 2deg; } 100% { scale: 1; rotate: 0; } }
-.world:has(.c-contact:is(:hover, :focus-visible, .is-hot)) .plug-in { animation: plug .5s ease-in-out infinite alternate; }
-@keyframes plug { to { rotate: -9deg; translate: 3px 2px; } }
 
 /* ------------------------------------------------------------- GALLERY */
 .c-gallery .body { background: #9fc0c9; }
@@ -318,8 +322,8 @@ a { color: inherit; text-decoration: none; }
 .wl-v1, .wl-v2 { top: -4000px; width: .5px; height: 9000px; }
 .wl-h1, .wl-h2 { left: -4000px; height: .5px; width: 9000px; }
 .wl-v1 { left: 539.5px; } .wl-v2 { left: 900px; } .wl-h1 { top: 386px; } .wl-h2 { top: 638px; }
-.hud { position: absolute; left: 50%; top: 50%; width: 1440px; height: 1024px; margin: -512px 0 0 -720px; transform-origin: 50% 50%; pointer-events: none; z-index: 5; }
-.hud-scroll { position: absolute; left: 1310px; top: 964px; margin: 0; font: 400 40px/1.13 "Instrument Sans", "Helvetica Neue", sans-serif; font-variation-settings: "wdth" 100; color: #d9d9d9; animation: hudpulse 2.2s ease-in-out infinite; }
+.hud { position: fixed; right: 3vw; bottom: 1.4vw; pointer-events: none; z-index: 5; }
+.hud-scroll { margin: 0; font: 400 clamp(22px, 2.78vw, 52px)/1.13 "Instrument Sans", "Helvetica Neue", sans-serif; font-variation-settings: "wdth" 100; color: #d9d9d9; animation: hudpulse 2.2s ease-in-out infinite; }
 @keyframes hudpulse { 50% { opacity: .45; } }
 
 /* ------------------------------------------------------------- panels */

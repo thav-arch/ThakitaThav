@@ -1,6 +1,6 @@
 // Landing board (landing.html).
-//  - desktop: the 1440 x 1024 world is pinned; scrolling pulls the camera back from a zoomed-in view of the
-//    intro note while every card flies in from outside the frame and settles at its Figma position.
+//  - desktop: scrolling pulls the camera back from a zoomed-in view of the intro note while every card flies
+//    in from outside the frame and settles at its Figma position (see "intro driver" below).
 //  - phones / narrow windows: a vertical board; each card rises into place as it scrolls into view.
 //  - every card has its own hover / tap micro-interaction (mostly CSS, see css/landing.css); this file adds
 //    pointer tilt, the game-boy d-pad, draggable stickers, the panels, the contact / gallery / blogs actions.
@@ -28,16 +28,21 @@ const lines = $('[data-role="lines"]', world);
 const els = $$(".el", world);
 
 /* ------------------------------------------------------------------ layout / camera
-   The flow follows the reference recording, mapped onto scroll progress p (0 to 1):
+   The flow follows the reference recording, mapped onto an intro progress p (0 to 1):
      p 0 to .55    the start screen holds still (camera zoomed in 2x) while the cards slowly creep in from outside
      p .55 to .90  the camera pulls back fast; the grey tile and grid lines dissolve, the cards snap into place,
                    the smiley travels from the start tile to its spot on the board
-     p .90 to 1    rest on the finished board                                                                      */
+     p .90 to 1    rest on the finished board
+   p is not tied to the scroll position. While the intro runs the page is locked; the wheel, touch and keys
+   scrub p, and as soon as the input stops the intro finishes on its own in the direction it was going, so it
+   never rests half way. At p = 1 the page unlocks; scrolling up from the top of the board plays it back.
+   The finished board always fills the window width (no side gaps); if it is taller than the window the page
+   simply scrolls down to the footer.                                                                          */
 const Z0 = 2; // the start screen (Figma 556:1033) is the board seen at 2x
 const A_END = 0.55, ZOOM_FROM = 0.58, ZOOM_LEN = 0.32;
 // the smiley on the start screen: screen (376,648) 103x105 at 2x  ->  world offset from its final spot, and size ratio
 const SMILEY = { dx: 720 + (376 + 51.5 - 720) / 2 - 706.99, dy: 512 + (648 + 52.5 - 512) / 2 - 497, k: 51.5 / 124 };
-let vw = 0, vh = 0, sw = 1440, sh = 1024, fit = 1, mobile = false, S = 1, lenis = null, progress = 0;
+let vw = 0, vh = 0, sw = 1440, sh = 1024, fit = 1, mobile = false, S = 1, progress = 0, yEnd = 0;
 
 const num = (cs, name, d = 0) => {
   const v = parseFloat(cs.getPropertyValue(name));
@@ -45,13 +50,15 @@ const num = (cs, name, d = 0) => {
 };
 
 function measure() {
-  vw = innerWidth;
+  vw = document.documentElement.clientWidth || innerWidth;
   vh = innerHeight;
   mobile = narrow.matches;
   const wcs = getComputedStyle(world);
   sw = num(wcs, "--sw", 1440);
   sh = num(wcs, "--sh", 1024);
-  fit = mobile ? vw / sw : Math.min(vw / sw, vh / sh);
+  fit = vw / sw; // fill the width on every screen
+  const boardH = sh * fit;
+  yEnd = !mobile && boardH < vh ? (vh - boardH) / 2 : 0;
   // half of the world area the zoomed-in camera sees at the start
   const hx = vw / (2 * fit * Z0), hy = vh / (2 * fit * Z0);
   for (const el of els) {
@@ -73,10 +80,8 @@ function measure() {
       fr: (cx < sw / 2 ? -1 : 1) * (mobile ? 9 : 6 + (idx % 3) * 3),
     };
   }
-  if (mobile) viewport.style.height = `${sh * fit}px`;
-  else viewport.style.height = "";
-  if (reduced && !mobile) scene.style.height = "100vh";
-  else if (!mobile) scene.style.height = "";
+  viewport.style.height = mobile ? `${boardH}px` : `${Math.max(vh, boardH)}px`;
+  setLock(!mobile && !reduced && progress < 1);
 }
 
 /* mobile: a card rises into place when it scrolls into view */
@@ -98,10 +103,11 @@ function render() {
   if (mobile) {
     S = fit;
     world.style.transform = `scale(${fit})`;
+    hud.style.opacity = "0";
     const top = viewport.getBoundingClientRect().top;
     for (const el of els) {
       const m = el._m;
-      if (m.role === "start" || m.idx <= 0 || reduced) { place(el, 1); continue; }
+      if (m.role === "start" || m.role === "static" || m.idx <= 0 || reduced) { place(el, 1); continue; }
       const screenY = top + m.cy * fit;
       place(el, easeOut(clamp((vh * 0.96 - screenY) / (vh * 0.32))));
     }
@@ -109,11 +115,11 @@ function render() {
   }
 
   const p = reduced ? 1 : progress;
-  const zoom = lerp(Z0, 1, easeInOut(clamp((p - ZOOM_FROM) / ZOOM_LEN)));
-  S = fit * zoom;
-  // the camera looks at the middle of the world the whole time
-  world.style.transform = `translate(${vw / 2 - (sw / 2) * S}px, ${vh / 2 - (sh / 2) * S}px) scale(${S})`;
-  hud.style.transform = `scale(${fit})`;
+  const zt = easeInOut(clamp((p - ZOOM_FROM) / ZOOM_LEN));
+  S = fit * lerp(Z0, 1, zt);
+  // the camera starts on the middle of the world and ends with the board filling the width
+  const camX = sw / 2, camY = lerp(sh / 2, (vh / 2 - yEnd) / fit, zt);
+  world.style.transform = `translate(${vw / 2 - camX * S}px, ${vh / 2 - camY * S}px) scale(${S})`;
   hud.style.opacity = String(clamp(1 - p / 0.06));
   skip.classList.toggle("gone", p > 0.9 || reduced);
 
@@ -123,6 +129,7 @@ function render() {
 
   for (const el of els) {
     const m = el._m;
+    if (m.role === "static") continue; // cable and plug: never animated
     if (m.role === "start") {
       el.style.opacity = String(1 - fade);
       el.style.visibility = fade >= 1 ? "hidden" : "visible";
@@ -143,37 +150,153 @@ function render() {
   }
 }
 
-function readProgress() {
-  const max = scene.offsetHeight - vh;
-  progress = max > 0 ? clamp(-scene.getBoundingClientRect().top / max) : 1;
+let raf = 0;
+const queue = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); };
+
+/* ------------------------------------------------------------------ intro driver */
+const root = document.documentElement;
+let locked = false;
+function setLock(on) {
+  if (on === locked) return;
+  locked = on;
+  root.classList.toggle("intro-lock", on);
+  if (on && scrollY) scrollTo(0, 0);
+}
+function setP(v) {
+  progress = clamp(v);
+  if (progress >= 1) setLock(false);
+  queue();
 }
 
-let raf = 0;
-const queue = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (!mobile) readProgress(); render(); }); };
+// autoplay: the slow drift part goes by quickly, the pull-back keeps its own pace
+let anim = 0, animTo = 0;
+const rate = (p, fwd) => (p < A_END ? (fwd ? 0.55 / 420 : 0.55 / 320) : (fwd ? 0.45 / 1500 : 0.45 / 1050)); // p per ms
+function stopAnim() { cancelAnimationFrame(anim); anim = 0; }
+function animateTo(to, speed = 1) {
+  stopAnim();
+  animTo = to;
+  let last = performance.now();
+  const step = (t) => {
+    const dt = Math.min(100, t - last); last = t;
+    const fwd = animTo > progress;
+    const next = progress + (fwd ? 1 : -1) * rate(progress, fwd) * dt * speed;
+    if (fwd ? next >= animTo : next <= animTo) { anim = 0; setP(animTo); return; }
+    setP(next);
+    anim = requestAnimationFrame(step);
+  };
+  anim = requestAnimationFrame(step);
+}
 
+// scrub: input moves p directly; when it goes quiet the intro completes in the last direction
+let idleT = 0, gestureFrom = 0, lastDir = 1;
+function scrub(dp) {
+  if (anim) {
+    if (Math.sign(dp) === Math.sign(animTo - progress)) return; // already heading that way
+    stopAnim();
+  }
+  if (!idleT) gestureFrom = progress;
+  lastDir = Math.sign(dp) || lastDir;
+  setP(progress + dp);
+  clearTimeout(idleT);
+  idleT = setTimeout(settle, 140);
+}
+function settle() {
+  idleT = 0;
+  if (progress <= 0 || progress >= 1) return;
+  // a tiny nudge goes back to where it was; anything more finishes the move
+  if (Math.abs(progress - gestureFrom) < 0.025) animateTo(gestureFrom <= 0.5 ? 0 : 1);
+  else animateTo(lastDir > 0 ? 1 : 0);
+}
+function reopen() { // from the top of the board, back to the start screen
+  setLock(true);
+  gestureFrom = 1;
+}
+
+const panelOpen = () => !$("#panel")?.hidden;
+const active = () => !mobile && !reduced && !panelOpen();
+// a wheel "gesture" ends after 200 ms without events (this also swallows trackpad inertia)
+let lastWheel = 0, gestureAtTop = true, gestureLocked = false, topAt = 0;
+// the board has to rest at the top for a moment before scrolling up plays the intro back,
+// so scrolling up from the footer stops on the board first
+const restedAtTop = () => scrollY <= 0 && performance.now() - topAt > 450;
+addEventListener("wheel", (e) => {
+  if (!active()) return;
+  const now = performance.now();
+  const fresh = now - lastWheel > 200;
+  lastWheel = now;
+  if (fresh) { gestureAtTop = scrollY <= 0; gestureLocked = locked; }
+  const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? vh : 1);
+  if (locked) {
+    e.preventDefault();
+    scrub(dy / 1000);
+  } else if (dy < 0 && gestureAtTop && fresh && restedAtTop()) {
+    e.preventDefault();
+    reopen();
+    gestureLocked = true;
+    scrub(dy / 1000);
+  } else if (gestureLocked) {
+    e.preventDefault(); // inertia of the gesture that just unlocked the page
+  }
+}, { passive: false });
+
+let touchY = null, touchLocked = false;
+addEventListener("touchstart", (e) => {
+  if (!active() || e.touches.length !== 1) return;
+  touchY = e.touches[0].clientY;
+  touchLocked = locked || restedAtTop();
+}, { passive: true });
+addEventListener("touchmove", (e) => {
+  if (touchY == null || !active()) return;
+  const y = e.touches[0].clientY, dy = touchY - y;
+  touchY = y;
+  if (!locked && !(touchLocked && dy < 0 && scrollY <= 0)) return;
+  if (!locked) reopen();
+  e.preventDefault();
+  scrub((dy * 1.6) / Math.max(600, vh));
+}, { passive: false });
+addEventListener("touchend", () => { touchY = null; }, { passive: true });
+
+addEventListener("keydown", (e) => {
+  if (!active() || e.altKey || e.ctrlKey || e.metaKey) return;
+  const k = e.key;
+  const fwd = k === "ArrowDown" || k === "PageDown" || k === "End" || (k === " " && !e.shiftKey);
+  const back = k === "ArrowUp" || k === "PageUp" || k === "Home" || (k === " " && e.shiftKey);
+  if (!fwd && !back) return;
+  // leave keys alone on buttons and links (space) and on the board itself (stickers move with the arrows)
+  if (e.target.closest?.("a, button, input, textarea, select, [contenteditable], [data-world]")) return;
+  if (locked) {
+    e.preventDefault();
+    animateTo(fwd ? 1 : 0);
+  } else if (back && restedAtTop()) {
+    e.preventDefault();
+    reopen();
+    animateTo(0);
+  }
+});
+
+if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+progress = reduced ? 1 : 0;
 measure();
-readProgress();
 render();
-addEventListener("scroll", queue, { passive: true });
+let wasTop = true;
+addEventListener("scroll", () => {
+  if (mobile) queue();
+  const top = scrollY <= 0;
+  if (top && !wasTop) topAt = performance.now();
+  wasTop = top;
+}, { passive: true });
 addEventListener("resize", () => { measure(); queue(); });
 narrow.addEventListener("change", () => { measure(); queue(); });
 document.fonts?.ready.then(() => { measure(); queue(); });
 
-if (window.Lenis && !reduced) {
-  lenis = new window.Lenis({ lerp: 0.09, wheelMultiplier: 0.95 });
-  const loop = (t) => { lenis.raf(t); requestAnimationFrame(loop); };
-  requestAnimationFrame(loop);
-}
-
 function jumpToBoard(smooth = true) {
   if (mobile) return;
-  const y = scene.offsetTop + scene.offsetHeight - vh;
-  if (lenis) lenis.scrollTo(y, { duration: smooth ? 1.6 : 0, immediate: !smooth });
-  else scrollTo({ top: y, behavior: smooth && !reduced ? "smooth" : "auto" });
+  if (smooth && !reduced) animateTo(1, 2.2);
+  else { stopAnim(); setP(1); }
 }
 skip?.addEventListener("click", (e) => { e.preventDefault(); jumpToBoard(); $(".c-about")?.focus({ preventScroll: true }); });
 // keyboard users tabbing into a card before the board is open: open it first
-world.addEventListener("focusin", (e) => { if (!mobile && !reduced && progress < 0.9 && e.target.closest(".card, .sticker")) jumpToBoard(false); });
+world.addEventListener("focusin", (e) => { if (!mobile && !reduced && progress < 1 && e.target.closest(".card, .sticker")) jumpToBoard(false); });
 
 /* ------------------------------------------------------------------ toast */
 const toastEl = $("#toast");
@@ -310,7 +433,6 @@ function openPanel(id, from) {
   void panel.offsetWidth;
   panel.classList.add("open");
   sheet.scrollTop = 0;
-  lenis?.stop();
   document.documentElement.style.overflow = "hidden";
   $("[data-close]", sheet).focus({ preventScroll: true });
 }
@@ -318,7 +440,6 @@ function closePanel() {
   if (panel.hidden) return;
   panel.classList.remove("open");
   setTimeout(() => { panel.hidden = true; }, reduced ? 0 : 320);
-  lenis?.start();
   document.documentElement.style.overflow = "";
   lastFocus?.focus?.({ preventScroll: true });
 }
