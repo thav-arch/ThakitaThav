@@ -26,9 +26,6 @@ img { -webkit-user-drag: none; user-select: none; }
 a { color: inherit; text-decoration: none; }
 :focus-visible { outline: 2px solid var(--lime); outline-offset: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.skip { position: fixed; z-index: 60; top: 14px; right: 14px; padding: 9px 14px; font-size: 13px; border: 1px solid rgba(255,255,255,.35); background: rgba(25,25,25,.85); backdrop-filter: blur(6px); border-radius: 999px; transition: opacity .4s, transform .4s var(--out); }
-.skip.gone { opacity: 0; pointer-events: none; transform: translateY(-8px); }
-.skip:not(:focus):not(:hover) { color: rgba(255,255,255,.8); }
 
 /* ------------------------------------------------------------- scene / camera */
 /* the intro is driven by js/landing.js, not by a scroll runway; while it plays the page is locked */
@@ -39,12 +36,10 @@ html.intro-lock { overflow: hidden; }
 }
 .scene { position: relative; }
 .viewport {
-  position: relative; height: 100vh; overflow: hidden;
+  position: relative; height: 100vh; overflow: hidden; overflow: clip;
   background-color: var(--bg);
-  background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
-  background-size: 36px 36px;
 }
-.world { position: absolute; left: 0; top: 0; width: calc(var(--sw) * 1px); height: calc(var(--sh) * 1px); transform-origin: 0 0; will-change: transform; --sw: 1440; --sh: 1024; }
+.world { position: absolute; left: 0; top: 0; width: calc(var(--sw) * 1px); height: calc(var(--sh) * 1px); transform-origin: 0 0; --sw: 1440; --sh: 1024; }
 
 /* every placed element: centre (cx,cy), size (w,h), tilt (r), scale (k). JS adds the fly-in transform on top. */
 .el { position: absolute; left: calc(var(--cx) * 1px); top: calc(var(--cy) * 1px); width: calc(var(--w) * 1px); height: calc(var(--h) * 1px); margin: calc(var(--h) * -.5px) 0 0 calc(var(--w) * -.5px); transform: rotate(calc(var(--r, 0) * 1deg)) scale(var(--k, 1)); }
@@ -316,15 +311,18 @@ html.intro-lock { overflow: hidden; }
 /* ------------------------------------------------------------- start screen (Figma 556:1033) */
 .start-card { position: absolute; inset: 0; background: #d9d9d9; }
 .start-text { position: absolute; left: 15.5px; top: 19px; width: 304.5px; margin: 0; font: 400 20px/1.13 "Instrument Sans", "Helvetica Neue", sans-serif; font-variation-settings: "wdth" 100; color: #1e1e1e; }
-.start-text b { font-weight: 700; font-style: italic; text-decoration: underline; text-underline-position: from-font; }
+.start-text b { font-weight: 700; font-style: italic; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 .world-lines { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
 .wl { position: absolute; background: #fff; display: block; }
-.wl-v1, .wl-v2 { top: -4000px; width: .5px; height: 9000px; }
-.wl-h1, .wl-h2 { left: -4000px; height: .5px; width: 9000px; }
-.wl-v1 { left: 539.5px; } .wl-v2 { left: 900px; } .wl-h1 { top: 386px; } .wl-h2 { top: 638px; }
-.hud { position: fixed; right: 3vw; bottom: 1.4vw; pointer-events: none; z-index: 5; }
+/* hairlines at the Figma start-frame positions (556:1033 lines at x 359 / 1080, y 259 / 763 at 2x);
+   placed with transforms so layout rounding does not thicken them */
+.wl-v1, .wl-v2 { left: 0; top: -4000px; width: 1px; height: 9000px; transform-origin: 0 0; }
+.wl-h1, .wl-h2 { top: 0; left: -4000px; height: 1px; width: 9000px; transform-origin: 0 0; }
+.wl-v1 { transform: translateX(539.5px) scaleX(.5); } .wl-v2 { transform: translateX(900px) scaleX(.5); }
+.wl-h1 { transform: translateY(385.5px) scaleY(.5); } .wl-h2 { transform: translateY(637.5px) scaleY(.5); }
+.hud { position: fixed; right: 1.9vw; bottom: 1.03vw; pointer-events: none; z-index: 5; }
 .hud-scroll { margin: 0; font: 400 clamp(22px, 2.78vw, 52px)/1.13 "Instrument Sans", "Helvetica Neue", sans-serif; font-variation-settings: "wdth" 100; color: #d9d9d9; animation: hudpulse 2.2s ease-in-out infinite; }
-@keyframes hudpulse { 50% { opacity: .45; } }
+@keyframes hudpulse { 50% { opacity: .7; } }
 
 /* ------------------------------------------------------------- panels */
 .panel { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px; background: rgba(8,8,8,.74); backdrop-filter: blur(10px); opacity: 0; transition: opacity .35s; }
@@ -361,10 +359,9 @@ a.row:hover .go { translate: 6px -6px; color: var(--lime); }
 /* ------------------------------------------------------------- phones / narrow windows: vertical board */
 @media (max-width: 899px) {
   .scene { height: auto; }
-  .viewport { position: relative; height: auto; overflow: hidden; }
+  .viewport { position: relative; height: auto; overflow: hidden; overflow: clip; }
   .world { --sw: 440; --sh: 1800; position: relative; }
   .hud, .world-lines { display: none; }
-  .skip { display: none; }
   .el-bg { display: none; }
   .el-start { --cx: 220; --cy: 124; --w: 404; --h: 190; pointer-events: auto; }
   .start-text { left: 20px; top: 24px; width: 372px; font-size: 24.5px; }

@@ -22,7 +22,6 @@ const narrow = matchMedia("(max-width: 899px)");
 const scene = $("[data-scene]");
 const viewport = $("[data-viewport]");
 const world = $("[data-world]");
-const skip = $(".skip");
 const hud = $("[data-hud]");
 const lines = $('[data-role="lines"]', world);
 const els = $$(".el", world);
@@ -121,7 +120,6 @@ function render() {
   const camX = sw / 2, camY = lerp(sh / 2, (vh / 2 - yEnd) / fit, zt);
   world.style.transform = `translate(${vw / 2 - camX * S}px, ${vh / 2 - camY * S}px) scale(${S})`;
   hud.style.opacity = String(clamp(1 - p / 0.06));
-  skip.classList.toggle("gone", p > 0.9 || reduced);
 
   const drift = easeOut(clamp(p / A_END)); // slow phase
   const fade = clamp((p - 0.6) / 0.2); // grey tile / lines dissolving
@@ -162,9 +160,15 @@ function setLock(on) {
   root.classList.toggle("intro-lock", on);
   if (on && scrollY) scrollTo(0, 0);
 }
+// keep the world on its own GPU layer only while it moves; at rest (start screen, finished board) the
+// browser redraws it at full resolution, so text and artwork stay sharp at the 2x start zoom
+let restT = 0;
 function setP(v) {
   progress = clamp(v);
   if (progress >= 1) setLock(false);
+  world.style.willChange = "transform";
+  clearTimeout(restT);
+  restT = setTimeout(() => { if (!anim && !idleT) world.style.willChange = "auto"; }, 260);
   queue();
 }
 
@@ -202,7 +206,7 @@ function scrub(dp) {
 }
 function settle() {
   idleT = 0;
-  if (progress <= 0 || progress >= 1) return;
+  if (progress <= 0 || progress >= 1) { if (!anim) world.style.willChange = "auto"; return; }
   // a tiny nudge goes back to where it was; anything more finishes the move
   if (Math.abs(progress - gestureFrom) < 0.025) animateTo(gestureFrom <= 0.5 ? 0 : 1);
   else animateTo(lastDir > 0 ? 1 : 0);
@@ -278,6 +282,8 @@ if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 progress = reduced ? 1 : 0;
 measure();
 render();
+// the board container clips its content; focus must never scroll it (older browsers without overflow: clip)
+viewport.addEventListener("scroll", () => { viewport.scrollTop = 0; viewport.scrollLeft = 0; });
 let wasTop = true;
 addEventListener("scroll", () => {
   if (mobile) queue();
@@ -294,7 +300,6 @@ function jumpToBoard(smooth = true) {
   if (smooth && !reduced) animateTo(1, 2.2);
   else { stopAnim(); setP(1); }
 }
-skip?.addEventListener("click", (e) => { e.preventDefault(); jumpToBoard(); $(".c-about")?.focus({ preventScroll: true }); });
 // keyboard users tabbing into a card before the board is open: open it first
 world.addEventListener("focusin", (e) => { if (!mobile && !reduced && progress < 1 && e.target.closest(".card, .sticker")) jumpToBoard(false); });
 
