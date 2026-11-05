@@ -271,7 +271,7 @@ const PANELS = {
       <h3>Skills</h3><ul class="chips">${(profile.skills || []).map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
       <h3>Find me</h3><p><a class="link" href="mailto:${esc(profile.email)}">${esc(profile.email)}</a>${(profile.links || []).map((l) => ` &nbsp;·&nbsp; <a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label || new URL(l.url).hostname)}</a>`).join("")}</p>`,
   }),
-  gallery: () => ({ k: "Gallery", t: "Moments", html: `<img class="lb-img" src="images/landing/gallery-photo.png" alt="A framed photograph from my gallery"><p style="margin-top:14px">More photographs are on the way.</p>` }),
+  gallery: () => ({ k: "Gallery", t: "Moments", html: `<img class="lb-img" src="images/landing/gallery-photo.webp" alt="A framed photograph from my gallery"><p style="margin-top:14px">More photographs are on the way.</p>` }),
 };
 
 function openPanel(id, from) {
