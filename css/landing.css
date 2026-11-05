@@ -1,4 +1,4 @@
-/* Landing board (landing.html). The page is a 1440 x 1024 "world" of tilted cards, built from the Figma frame
+/* Landing board (index.html, the home page). The page is a 1440 x 1024 "world" of tilted cards, built from the Figma frame
    "Portfolio Landing Page". Desktop: the world is pinned and the camera pulls back as you scroll. Phones and
    narrow windows: a vertical board, cards rise into place as they enter the screen.
    Positions below are the Figma numbers (centre of each card, size, tilt); the "mobile" block re-lays them out. */

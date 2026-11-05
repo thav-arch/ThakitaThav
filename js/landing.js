@@ -1,4 +1,4 @@
-// Landing board (landing.html).
+// Landing board (index.html, the home page).
 //  - desktop: scrolling pulls the camera back from a zoomed-in view of the intro note while every card flies
 //    in from outside the frame and settles at its Figma position (see "intro driver" below).
 //  - phones / narrow windows: a vertical board; each card rises into place as it scrolls into view.

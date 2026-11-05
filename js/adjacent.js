@@ -1,10 +1,10 @@
 // "Previous / Next project" at the end of every case study (ported from the old ProjectCaseStudy).
 // It is filled from js/data.js, so a new project page gets it automatically: the list is every project
-// that has a page, in the order of the 3D strip, and it wraps around (after the last comes the first).
+// that has a page, in the order of js/data.js, and it wraps around (after the last comes the first).
 //
 // A page only needs   <div class="cs" data-slug="<its slug>">  and   <nav class="cs-adjacent" data-adjacent></nav>
-// Opened on its own, the links are ordinary links. Opened from the 3D home page, a click asks the home page
-// to slide to the other project in place (js/main.js listens for "project:switch").
+// The links are ordinary links. (The old 3D home page could open a project in place; a click then asked it
+// to slide to the other project via "project:switch". Project pages now always open on their own.)
 const ROOT = new URL("../", import.meta.url); // the site root (this file is in js/)
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
