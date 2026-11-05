@@ -37,49 +37,73 @@ const els = $$(".el", world);
    never rests half way. At p = 1 the page unlocks; scrolling up from the top of the board plays it back.
    The finished board always fills the window width (no side gaps); if it is taller than the window the page
    simply scrolls down to the footer.                                                                          */
-const Z0 = 2; // the start screen (Figma 556:1033) is the board seen at 2x
+const Z0 = 2; // the start screen (Figma 556:1033) is the board seen at 2x the window width
 const A_END = 0.55, ZOOM_FROM = 0.58, ZOOM_LEN = 0.32;
 // the smiley on the start screen: screen (376,648) 103x105 at 2x  ->  world offset from its final spot, and size ratio
 const SMILEY = { dx: 720 + (376 + 51.5 - 720) / 2 - 706.99, dy: 512 + (648 + 52.5 - 512) / 2 - 497, k: 51.5 / 124 };
-let vw = 0, vh = 0, sw = 1440, sh = 1024, fit = 1, mobile = false, S = 1, progress = 0, yEnd = 0;
+// small pieces that sit on a card move with that card when the board spreads out on wide windows
+const ANCHOR = { tapeR1: "resume", tapeR2: "resume", cone1: "blogs", cone2: "blogs", basket: "about", tapeL: "about", plug: "phone" };
+// on windows wider than the frame the cards spread over 70% of the extra width (at most 40% of the frame),
+// so the collage stays close together; the rest is a slim margin of board background on each side
+const SPREAD = 0.7, SPREAD_MAX = 0.4;
+let vw = 0, vh = 0, sw = 1440, sh = 1024, fit = 1, mobile = false, S = 1, progress = 0;
+let S0 = 2, extraW = 0, cable = null;
 
 const num = (cs, name, d = 0) => {
   const v = parseFloat(cs.getPropertyValue(name));
   return Number.isFinite(v) ? v : d;
 };
+const kind = (el) => [...el.classList].find((c) => c.startsWith("el-") && c !== "el")?.slice(3) || "";
 
 function measure() {
   vw = document.documentElement.clientWidth || innerWidth;
   vh = innerHeight;
   mobile = narrow.matches;
+  for (const el of els) { el.style.removeProperty("--w"); }
   const wcs = getComputedStyle(world);
   sw = num(wcs, "--sw", 1440);
   sh = num(wcs, "--sh", 1024);
-  fit = vw / sw; // fill the width on every screen
-  const boardH = sh * fit;
-  yEnd = !mobile && boardH < vh ? (vh - boardH) / 2 : 0;
-  // half of the world area the zoomed-in camera sees at the start
-  const hx = vw / (2 * fit * Z0), hy = vh / (2 * fit * Z0);
+  // phones: the vertical board fills the width. Desktop: the whole board, footer included, fits on one
+  // screen; on windows wider than the 1440 x 1024 frame the cards spread out to fill the extra width
+  fit = mobile ? vw / sw : Math.min(vw / sw, vh / sh);
+  S0 = Z0 * (vw / sw); // the start screen matches the Figma frame across the window width
+  extraW = mobile ? 0 : Math.max(0, vw / fit - sw);
+  const spreadW = Math.min(extraW * SPREAD, SPREAD_MAX * sw);
+  const base = new Map();
   for (const el of els) {
     const cs = getComputedStyle(el);
-    const cx = num(cs, "--cx"), cy = num(cs, "--cy"), k = num(cs, "--k", 1);
+    base.set(kind(el), { cs, cx: num(cs, "--cx") });
+  }
+  const shiftOf = (k) => ((base.get(ANCHOR[k] || k)?.cx ?? sw / 2) / sw - 0.5) * spreadW;
+  // half of the world area the zoomed-in camera sees at the start
+  const hx = vw / (2 * S0), hy = vh / (2 * S0);
+  for (const el of els) {
+    const k0 = kind(el), { cs, cx } = base.get(k0);
+    const cy = num(cs, "--cy"), k = num(cs, "--k", 1);
     const idx = el.dataset.fly === "none" || el.dataset.fly === undefined ? -1 : Number(el.dataset.fly);
-    const vx = cx - sw / 2, vy = cy - sh / 2, len = Math.hypot(vx, vy) || 1;
+    // the footer strip and the background run the full width of the window
+    if (!mobile && (k0 === "footer" || k0 === "bg")) el.style.setProperty("--w", num(cs, "--w") + extraW);
+    const shift = mobile || k0 === "footer" || k0 === "bg" || k0 === "start" ? 0 : shiftOf(k0);
+    const fxp = cx + shift; // final centre
+    const vx = fxp - sw / 2, vy = cy - sh / 2, len = Math.hypot(vx, vy) || 1;
     const ux = vx / len, uy = vy / len;
     const hw = (num(cs, "--w") / 2) * k, hh = (num(cs, "--h") / 2) * k;
-    // distance along its own direction at which the card is just outside the camera frame (d0) and
+    // distance along its own direction at which the card is fully outside the start frame (d0) and
     // peeking in by about 90 px at the end of the slow drift (dA); never closer than its final spot
     const edge = Math.min(Math.abs(ux) > 1e-6 ? hx / Math.abs(ux) : 1e9, Math.abs(uy) > 1e-6 ? hy / Math.abs(uy) : 1e9);
     const ext = Math.abs(ux) * hw + Math.abs(uy) * hh;
     el._m = {
-      cx, cy, r: num(cs, "--r"), k, idx, role: el.dataset.role || "", ux, uy, len,
-      d0: Math.max(len, edge + ext + 40), dA: Math.max(len, edge + ext - 90),
+      cx, cy, r: num(cs, "--r"), k, idx, role: el.dataset.role || "", kind: k0, ux, uy, len, shift,
+      d0: Math.max(len, edge + Math.hypot(hw, hh) + 40), dA: Math.max(len, edge + ext - 90),
       // mobile: a short rise from the side
       fx: cx < sw / 2 ? -46 : 46, fy: 110,
       fr: (cx < sw / 2 ? -1 : 1) * (mobile ? 9 : 6 + (idx % 3) * 3),
     };
   }
-  viewport.style.height = mobile ? `${boardH}px` : `${Math.max(vh, boardH)}px`;
+  // the cable runs from the left edge of the window to the plug, which moves with the phone
+  const cab = base.get("cable");
+  cable = cab && !mobile ? { dx: -extraW / 2, sx: (num(cab.cs, "--w") + shiftOf("plug") + extraW / 2) / num(cab.cs, "--w") } : null;
+  viewport.style.height = mobile ? `${sh * fit}px` : `${vh}px`;
   setLock(!mobile && !reduced && progress < 1);
 }
 
@@ -115,10 +139,9 @@ function render() {
 
   const p = reduced ? 1 : progress;
   const zt = easeInOut(clamp((p - ZOOM_FROM) / ZOOM_LEN));
-  S = fit * lerp(Z0, 1, zt);
-  // the camera starts on the middle of the world and ends with the board filling the width
-  const camX = sw / 2, camY = lerp(sh / 2, (vh / 2 - yEnd) / fit, zt);
-  world.style.transform = `translate(${vw / 2 - camX * S}px, ${vh / 2 - camY * S}px) scale(${S})`;
+  // zoom in log space so the pull-back feels even all the way; the camera stays on the middle of the world
+  S = S0 * Math.pow(fit / S0, zt);
+  world.style.transform = `translate(${vw / 2 - (sw / 2) * S}px, ${vh / 2 - (sh / 2) * S}px) scale(${S})`;
   hud.style.opacity = String(clamp(1 - p / 0.06));
 
   const drift = easeOut(clamp(p / A_END)); // slow phase
@@ -127,7 +150,12 @@ function render() {
 
   for (const el of els) {
     const m = el._m;
-    if (m.role === "static") continue; // cable and plug: never animated
+    if (m.role === "static") {
+      // cable and plug: never animated, only placed for the window width
+      if (m.kind === "cable" && cable) { el.style.transformOrigin = "0 50%"; el.style.transform = `translateX(${cable.dx}px) scaleX(${cable.sx})`; }
+      else el.style.transform = `translateX(${m.shift}px) rotate(${m.r}deg) scale(${m.k})`;
+      continue;
+    }
     if (m.role === "start") {
       el.style.opacity = String(1 - fade);
       el.style.visibility = fade >= 1 ? "hidden" : "visible";
@@ -136,12 +164,12 @@ function render() {
       el.style.opacity = String(0.61 * easeOut(clamp((p - 0.62) / 0.3)));
     } else if (m.role === "smiley") {
       const qs = easeInOut(clamp((p - ZOOM_FROM) / 0.34));
-      el.style.transform = `translate(${SMILEY.dx * (1 - qs)}px, ${SMILEY.dy * (1 - qs)}px) rotate(${360 * (1 - qs)}deg) scale(${lerp(SMILEY.k, 1, qs)})`;
+      el.style.transform = `translate(${SMILEY.dx * (1 - qs) + m.shift * qs}px, ${SMILEY.dy * (1 - qs)}px) rotate(${360 * (1 - qs)}deg) scale(${lerp(SMILEY.k, 1, qs)})`;
     } else {
       // card: slow drift from outside the frame, then the fast move to its place
       const qb = easeInOut(clamp((p - A_END - Math.max(0, m.idx) * 0.006) / 0.32));
       const d = p < A_END ? lerp(m.d0, m.dA, drift) : lerp(m.dA, m.len, qb);
-      const ox = m.ux * d - (m.cx - sw / 2), oy = m.uy * d - (m.cy - sh / 2);
+      const ox = m.ux * d - (m.cx + m.shift - sw / 2) + m.shift, oy = m.uy * d - (m.cy - sh / 2);
       el.style.transform = `translate(${ox}px, ${oy}px) rotate(${m.r + m.fr * (1 - qb)}deg) scale(${m.k})`;
       el.style.pointerEvents = qb < 0.9 ? "none" : "";
     }
@@ -160,15 +188,18 @@ function setLock(on) {
   root.classList.toggle("intro-lock", on);
   if (on && scrollY) scrollTo(0, 0);
 }
-// keep the world on its own GPU layer only while it moves; at rest (start screen, finished board) the
-// browser redraws it at full resolution, so text and artwork stay sharp at the 2x start zoom
+// While the intro moves, the world and every card get their own GPU layer (class "moving"), so a frame
+// only re-composites the layers instead of repainting the board with its shadows and blend modes.
+// At rest (start screen, finished board) the layers are dropped and the browser redraws everything at
+// full resolution, so text and artwork stay sharp at the 2x start zoom.
 let restT = 0;
+const rest = () => world.classList.remove("moving");
 function setP(v) {
   progress = clamp(v);
   if (progress >= 1) setLock(false);
-  world.style.willChange = "transform";
+  world.classList.add("moving");
   clearTimeout(restT);
-  restT = setTimeout(() => { if (!anim && !idleT) world.style.willChange = "auto"; }, 260);
+  restT = setTimeout(() => { if (!anim && !idleT) rest(); }, 260);
   queue();
 }
 
@@ -206,7 +237,7 @@ function scrub(dp) {
 }
 function settle() {
   idleT = 0;
-  if (progress <= 0 || progress >= 1) { if (!anim) world.style.willChange = "auto"; return; }
+  if (progress <= 0 || progress >= 1) { if (!anim) rest(); return; }
   // a tiny nudge goes back to where it was; anything more finishes the move
   if (Math.abs(progress - gestureFrom) < 0.025) animateTo(gestureFrom <= 0.5 ? 0 : 1);
   else animateTo(lastDir > 0 ? 1 : 0);
@@ -279,7 +310,15 @@ addEventListener("keydown", (e) => {
 });
 
 if ("scrollRestoration" in history) history.scrollRestoration = "manual";
-progress = reduced ? 1 : 0;
+// coming back from a project page (its Close / Back buttons link to index.html#board): no intro, straight
+// to the finished board, with the panel the visitor opened the project from
+// (or Back from a project, when the browser had to reload this page instead of restoring it from its cache)
+let cameBack = false;
+try { cameBack = performance.getEntriesByType("navigation")[0]?.type === "back_forward" && sessionStorage.getItem("tt-panel") !== null; } catch {}
+const returning = location.hash === "#board" || cameBack;
+// tidy the address once the page has faded in (changing it during the crossfade cancels the crossfade)
+if (location.hash === "#board") setTimeout(() => history.replaceState(null, "", location.pathname + location.search), 1500);
+progress = reduced || returning ? 1 : 0;
 measure();
 render();
 // the board container clips its content; focus must never scroll it (older browsers without overflow: clip)
@@ -394,7 +433,7 @@ for (const st of $$(".sticker")) {
 /* ------------------------------------------------------------------ panels */
 const panel = $("#panel");
 const sheet = $("[data-sheet]");
-let lastFocus = null;
+let lastFocus = null, openId = null;
 
 const projectBySlug = (slug) => SITE.projects.find((p) => p.slug === slug);
 function projectRows(slugs) {
@@ -431,6 +470,7 @@ function openPanel(id, from) {
   const c = PANELS[id]?.();
   if (!c) return;
   lastFocus = from || document.activeElement;
+  openId = id;
   $("#panel-k").textContent = c.k;
   $("#panel-title").textContent = c.t;
   $("#panel-body").innerHTML = c.html;
@@ -443,6 +483,7 @@ function openPanel(id, from) {
 }
 function closePanel() {
   if (panel.hidden) return;
+  openId = null;
   panel.classList.remove("open");
   setTimeout(() => { panel.hidden = true; }, reduced ? 0 : 320);
   document.documentElement.style.overflow = "";
@@ -485,3 +526,30 @@ world.addEventListener("click", (e) => {
   if (card.classList.contains("c-gb")) { card.classList.remove("flick"); void card.offsetWidth; card.classList.add("flick"); }
   setTimeout(() => openPanel(key, card), reduced ? 0 : 200);
 });
+
+/* ------------------------------------------------------------------ page to page
+   Browsers with cross-document view transitions crossfade to the project page by themselves (css/landing.css);
+   older ones get a short fade-out first. The open panel is remembered so closing the project comes back to it. */
+const crossfades = "onpagereveal" in window;
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("a[href]");
+  if (!a || a.target === "_blank" || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  const url = new URL(a.href, location.href);
+  if (url.origin !== location.origin || !/\/projects\/[^/]+\.html$/.test(url.pathname)) return;
+  try { sessionStorage.setItem("tt-panel", openId || ""); } catch {}
+  if (crossfades || reduced) return;
+  e.preventDefault();
+  document.documentElement.classList.add("leaving");
+  setTimeout(() => { location.href = a.href; }, 280);
+});
+// back / forward from the page cache: show the page again as it was left
+addEventListener("pageshow", (e) => {
+  if (!e.persisted) return;
+  document.documentElement.classList.remove("leaving");
+  try { sessionStorage.removeItem("tt-panel"); } catch {}
+});
+if (returning) {
+  let id = "";
+  try { id = sessionStorage.getItem("tt-panel") || ""; sessionStorage.removeItem("tt-panel"); } catch {}
+  if (id && PANELS[id]) openPanel(id, $(`[data-panel="${id}"]`));
+}

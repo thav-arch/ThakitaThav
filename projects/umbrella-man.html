@@ -9,10 +9,11 @@
     <!-- every path below is relative to the site root, so this file works on its own AND when the 3D home page loads it -->
     <base href="../" />
     <link rel="stylesheet" href="css/fonts.css?v=20261020c" />
-    <link rel="stylesheet" href="css/base.css?v=20261020c" />
+    <link rel="stylesheet" href="css/base.css?v=20261106a" />
     <link rel="stylesheet" href="css/case.css?v=20261020c" />
     <link rel="stylesheet" href="css/umbrella-man.css?v=20261020c" />
     <link rel="preload" href="fonts/CabinCondensed-400.woff2" as="font" type="font/woff2" crossorigin />
+    <script>/* a page crossfade the browser has to skip is not an error */for(const n of["pageswap","pagereveal"])addEventListener(n,e=>{const t=e.viewTransition;if(t)for(const k of["ready","finished","updateCallbackDone"])t[k]?.catch?.(()=>{})});</script>
   </head>
   <body data-standalone>
     <div
@@ -132,7 +133,7 @@
         <nav class="cs-adjacent" aria-label="More projects" data-adjacent></nav>
 
         <footer class="cs-foot">
-          <button data-action="close">← Back to the world</button>
+          <button data-action="close">← Back to the board</button>
           <span>© <span data-year>2026</span> Thavanesh Nagarajan</span>
         </footer>
       </article>
@@ -140,6 +141,6 @@
 
     <script src="js/vendor/gsap.min.js"></script>
     <script src="js/vendor/lenis.min.js"></script>
-    <script type="module" data-page src="js/pages/umbrella-man.js?v=20261020c"></script>
+    <script type="module" data-page src="js/pages/umbrella-man.js?v=20261106a"></script>
   </body>
 </html>

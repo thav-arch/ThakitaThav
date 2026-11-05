@@ -3,6 +3,24 @@
 // Ported from components/useEditorialScroll.ts. Returns a function that undoes everything.
 import { fillAdjacent } from "./adjacent.js";
 
+// Close / Back: when the visitor came from the home page, step back in history, so the browser restores the
+// board exactly as it was (same panel open). Otherwise open the home page on the finished board (index.html#board
+// skips the intro). Browsers with cross-document view transitions crossfade by themselves (css/base.css);
+// older ones get a short fade-out first.
+function goHome() {
+  const home = new URL("index.html", document.baseURI);
+  let fromHome = false;
+  try {
+    const ref = new URL(document.referrer);
+    fromHome = ref.origin === home.origin && (ref.pathname === home.pathname || ref.pathname === home.pathname.replace(/index\.html$/, ""));
+  } catch {}
+  const go = () => (fromHome && history.length > 1 ? history.back() : location.assign(`${home.href}#board`));
+  if ("onpagereveal" in window || matchMedia("(prefers-reduced-motion: reduce)").matches) return go();
+  document.documentElement.classList.add("leaving");
+  setTimeout(go, 280);
+}
+addEventListener("pageshow", (e) => { if (e.persisted) document.documentElement.classList.remove("leaving"); });
+
 export function editorialScroll(cs) {
   const content = cs.querySelector("[data-cs-content]");
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -66,7 +84,7 @@ export function editorialScroll(cs) {
       return;
     }
     if (!e.target.closest("[data-action=close]")) return;
-    if (document.body.hasAttribute("data-standalone")) location.href = "index.html";
+    if (document.body.hasAttribute("data-standalone")) goHome();
     else document.dispatchEvent(new CustomEvent("project:close"));
   };
   cs.addEventListener("click", onClick);
