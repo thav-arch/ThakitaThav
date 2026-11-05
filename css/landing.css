@@ -8,6 +8,8 @@
 @font-face { font-family: "Fjalla One"; src: url("../fonts/FjallaOne.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "Jersey 20"; src: url("../fonts/Jersey20.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "New Amsterdam"; src: url("../fonts/NewAmsterdam.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Instrument Sans"; src: url("../fonts/InstrumentSans.woff2") format("woff2"); font-weight: 400 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Instrument Sans"; src: url("../fonts/InstrumentSans-Italic.woff2") format("woff2"); font-weight: 400 700; font-style: italic; font-display: swap; }
 @font-face { font-family: "Archivo Narrow"; src: url("../fonts/ArchivoNarrow-700.woff2") format("woff2"); font-weight: 700; font-display: swap; }
 
 :root {
@@ -54,7 +56,7 @@ a { color: inherit; text-decoration: none; }
 .hl { overflow: visible; }
 
 .el-bg { --cx: 719.5; --cy: 462.5; --w: 1619; --h: 925; opacity: .61; pointer-events: none; }
-.el-intro { --cx: 720; --cy: 512; --w: 540; --h: 250; z-index: 30; }
+.el-start { --cx: 719.5; --cy: 512; --w: 360.5; --h: 252; pointer-events: none; }
 .el-footer { --cx: 720; --cy: 977; --w: 1440; --h: 94; }
 .el-contact { --cx: 162.59; --cy: 647.91; --w: 259.913; --h: 387.471; --r: -10.33; }
 .el-gallery { --cx: 895.83; --cy: 714.87; --w: 469; --h: 343; --r: .21; }
@@ -307,16 +309,18 @@ a { color: inherit; text-decoration: none; }
 .marquee:hover .mq-track { animation-play-state: paused; }
 @keyframes mq { to { translate: calc(-209px * 6) 0; } }
 
-/* ------------------------------------------------------------- intro tile */
-.intro-tile { position: absolute; inset: 0; padding: 28px 30px; background: #434241; border: 1px solid #fff; box-shadow: -6px -8px 0 #232426; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
-.intro-tile p { margin: 0; }
-.intro-k { font: 500 13px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; color: var(--lime); }
-.intro-h { font: 400 46px/1.02 var(--sans); letter-spacing: -.02em; }
-.intro-p { font: 300 18px/1.4 var(--sans); color: rgba(255,255,255,.86); max-width: 460px; }
-.intro-s { font: 400 14px/1 var(--sans); color: rgba(255,255,255,.7); margin-top: 6px; }
-.scroll-cue { position: absolute; left: 50%; bottom: 22px; translate: -50% 0; display: flex; flex-direction: column; align-items: center; gap: 8px; font: 500 11px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: rgba(255,255,255,.65); transition: opacity .4s; pointer-events: none; z-index: 5; }
-.scroll-cue i { width: 1px; height: 38px; background: linear-gradient(rgba(255,255,255,.7), transparent); transform-origin: 50% 0; animation: cue 1.6s var(--out) infinite; }
-@keyframes cue { 0% { scale: 1 0; } 60% { scale: 1 1; } 100% { scale: 1 1; opacity: 0; } }
+/* ------------------------------------------------------------- start screen (Figma 556:1033) */
+.start-card { position: absolute; inset: 0; background: #d9d9d9; }
+.start-text { position: absolute; left: 15.5px; top: 19px; width: 304.5px; margin: 0; font: 400 20px/1.13 "Instrument Sans", "Helvetica Neue", sans-serif; font-variation-settings: "wdth" 100; color: #1e1e1e; }
+.start-text b { font-weight: 700; font-style: italic; text-decoration: underline; text-underline-position: from-font; }
+.world-lines { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.wl { position: absolute; background: #fff; display: block; }
+.wl-v1, .wl-v2 { top: -4000px; width: .5px; height: 9000px; }
+.wl-h1, .wl-h2 { left: -4000px; height: .5px; width: 9000px; }
+.wl-v1 { left: 539.5px; } .wl-v2 { left: 900px; } .wl-h1 { top: 386px; } .wl-h2 { top: 638px; }
+.hud { position: absolute; left: 50%; top: 50%; width: 1440px; height: 1024px; margin: -512px 0 0 -720px; transform-origin: 50% 50%; pointer-events: none; z-index: 5; }
+.hud-scroll { position: absolute; left: 1310px; top: 964px; margin: 0; font: 400 40px/1.13 "Instrument Sans", "Helvetica Neue", sans-serif; font-variation-settings: "wdth" 100; color: #d9d9d9; animation: hudpulse 2.2s ease-in-out infinite; }
+@keyframes hudpulse { 50% { opacity: .45; } }
 
 /* ------------------------------------------------------------- panels */
 .panel { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px; background: rgba(8,8,8,.74); backdrop-filter: blur(10px); opacity: 0; transition: opacity .35s; }
@@ -355,14 +359,11 @@ a.row:hover .go { translate: 6px -6px; color: var(--lime); }
   .scene { height: auto; }
   .viewport { position: relative; height: auto; overflow: hidden; }
   .world { --sw: 440; --sh: 1800; position: relative; }
-  .scroll-cue { display: none; }
+  .hud, .world-lines { display: none; }
   .skip { display: none; }
   .el-bg { display: none; }
-  .el-intro { --cx: 220; --cy: 120; --w: 400; --h: 196; }
-  .intro-tile { padding: 20px 22px; gap: 9px; }
-  .intro-h { font-size: 33px; }
-  .intro-p { font-size: 15px; }
-  .intro-s { display: none; }
+  .el-start { --cx: 220; --cy: 124; --w: 404; --h: 190; pointer-events: auto; }
+  .start-text { left: 20px; top: 24px; width: 372px; font-size: 24.5px; }
   .el-about { --cx: 220; --cy: 332; --k: .62; }
   .el-gb { --cx: 118; --cy: 610; --k: .56; }
   .el-resume { --cx: 336; --cy: 596; --k: .62; }
@@ -394,4 +395,3 @@ a.row:hover .go { translate: 6px -6px; color: var(--lime); }
 .mq-track li.dark { background: #262626; }
 .mq-track li.dark img { max-height: 47px; max-width: 47px; }
 .mq-track li.dark:hover { background: #262626; }
-.mq-track li.txt { font: 600 20px/1 var(--sans); letter-spacing: -.02em; color: #b01240; text-transform: lowercase; }

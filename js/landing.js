@@ -23,12 +23,20 @@ const scene = $("[data-scene]");
 const viewport = $("[data-viewport]");
 const world = $("[data-world]");
 const skip = $(".skip");
-const cue = $(".scroll-cue");
-const intro = $(".el-intro");
+const hud = $("[data-hud]");
+const lines = $('[data-role="lines"]', world);
 const els = $$(".el", world);
 
-/* ------------------------------------------------------------------ layout / camera */
-const Z0 = 2.05; // starting zoom of the camera
+/* ------------------------------------------------------------------ layout / camera
+   The flow follows the reference recording, mapped onto scroll progress p (0 to 1):
+     p 0 to .55    the start screen holds still (camera zoomed in 2x) while the cards slowly creep in from outside
+     p .55 to .90  the camera pulls back fast; the grey tile and grid lines dissolve, the cards snap into place,
+                   the smiley travels from the start tile to its spot on the board
+     p .90 to 1    rest on the finished board                                                                      */
+const Z0 = 2; // the start screen (Figma 556:1033) is the board seen at 2x
+const A_END = 0.55, ZOOM_FROM = 0.58, ZOOM_LEN = 0.32;
+// the smiley on the start screen: screen (376,648) 103x105 at 2x  ->  world offset from its final spot, and size ratio
+const SMILEY = { dx: 720 + (376 + 51.5 - 720) / 2 - 706.99, dy: 512 + (648 + 52.5 - 512) / 2 - 497, k: 51.5 / 124 };
 let vw = 0, vh = 0, sw = 1440, sh = 1024, fit = 1, mobile = false, S = 1, lenis = null, progress = 0;
 
 const num = (cs, name, d = 0) => {
@@ -44,18 +52,25 @@ function measure() {
   sw = num(wcs, "--sw", 1440);
   sh = num(wcs, "--sh", 1024);
   fit = mobile ? vw / sw : Math.min(vw / sw, vh / sh);
+  // half of the world area the zoomed-in camera sees at the start
+  const hx = vw / (2 * fit * Z0), hy = vh / (2 * fit * Z0);
   for (const el of els) {
     const cs = getComputedStyle(el);
-    const cx = num(cs, "--cx"), cy = num(cs, "--cy");
+    const cx = num(cs, "--cx"), cy = num(cs, "--cy"), k = num(cs, "--k", 1);
     const idx = el.dataset.fly === "none" || el.dataset.fly === undefined ? -1 : Number(el.dataset.fly);
     const vx = cx - sw / 2, vy = cy - sh / 2, len = Math.hypot(vx, vy) || 1;
+    const ux = vx / len, uy = vy / len;
+    const hw = (num(cs, "--w") / 2) * k, hh = (num(cs, "--h") / 2) * k;
+    // distance along its own direction at which the card is just outside the camera frame (d0) and
+    // peeking in by about 90 px at the end of the slow drift (dA); never closer than its final spot
+    const edge = Math.min(Math.abs(ux) > 1e-6 ? hx / Math.abs(ux) : 1e9, Math.abs(uy) > 1e-6 ? hy / Math.abs(uy) : 1e9);
+    const ext = Math.abs(ux) * hw + Math.abs(uy) * hh;
     el._m = {
-      cx, cy, r: num(cs, "--r"), k: num(cs, "--k", 1), idx,
-      // where it comes from: outwards along its own direction, beyond the camera frame
-      fx: mobile ? (cx < sw / 2 ? -46 : 46) : vx * 1.45 + (vx / len) * 80,
-      fy: mobile ? 110 : vy * 1.45 + (vy / len) * 80,
-      fr: (cx < sw / 2 ? -1 : 1) * (mobile ? 9 : 16 + (idx % 3) * 5),
-      h: num(cs, "--h"),
+      cx, cy, r: num(cs, "--r"), k, idx, role: el.dataset.role || "", ux, uy, len,
+      d0: Math.max(len, edge + ext + 40), dA: Math.max(len, edge + ext - 90),
+      // mobile: a short rise from the side
+      fx: cx < sw / 2 ? -46 : 46, fy: 110,
+      fr: (cx < sw / 2 ? -1 : 1) * (mobile ? 9 : 6 + (idx % 3) * 3),
     };
   }
   if (mobile) viewport.style.height = `${sh * fit}px`;
@@ -64,15 +79,16 @@ function measure() {
   else if (!mobile) scene.style.height = "";
 }
 
-function place(el, q, extraScale = 1) {
+/* mobile: a card rises into place when it scrolls into view */
+function place(el, q) {
   const m = el._m;
   if (q >= 1) {
-    el.style.transform = `rotate(${m.r}deg) scale(${m.k * extraScale})`;
+    el.style.transform = `rotate(${m.r}deg) scale(${m.k})`;
     el.style.opacity = "";
     el.style.pointerEvents = "";
     return;
   }
-  el.style.transform = `translate(${m.fx * (1 - q)}px, ${m.fy * (1 - q)}px) rotate(${m.r + m.fr * (1 - q)}deg) scale(${m.k * (0.72 + 0.28 * q) * extraScale})`;
+  el.style.transform = `translate(${m.fx * (1 - q)}px, ${m.fy * (1 - q)}px) rotate(${m.r + m.fr * (1 - q)}deg) scale(${m.k * (0.72 + 0.28 * q)})`;
   el.style.opacity = String(clamp(q * 2.6));
   el.style.pointerEvents = q < 0.7 ? "none" : "";
 }
@@ -85,37 +101,46 @@ function render() {
     const top = viewport.getBoundingClientRect().top;
     for (const el of els) {
       const m = el._m;
-      if (m.idx < 0 || m.idx === 0) { place(el, 1); continue; }
-      if (reduced) { place(el, 1); continue; }
+      if (m.role === "start" || m.idx <= 0 || reduced) { place(el, 1); continue; }
       const screenY = top + m.cy * fit;
       place(el, easeOut(clamp((vh * 0.96 - screenY) / (vh * 0.32))));
     }
     return;
   }
+
   const p = reduced ? 1 : progress;
-  const ez = easeInOut(clamp((p - 0.03) / 0.87));
-  const zoom = lerp(Z0, 1, ez);
-  const cxw = lerp(sw / 2, sw / 2, ez), cyw = lerp(sh / 2 - 6, sh / 2, ez);
+  const zoom = lerp(Z0, 1, easeInOut(clamp((p - ZOOM_FROM) / ZOOM_LEN)));
   S = fit * zoom;
-  world.style.transform = `translate(${vw / 2 - cxw * S}px, ${vh / 2 - cyw * S}px) scale(${S})`;
+  // the camera looks at the middle of the world the whole time
+  world.style.transform = `translate(${vw / 2 - (sw / 2) * S}px, ${vh / 2 - (sh / 2) * S}px) scale(${S})`;
+  hud.style.transform = `scale(${fit})`;
+  hud.style.opacity = String(clamp(1 - p / 0.06));
+  skip.classList.toggle("gone", p > 0.9 || reduced);
+
+  const drift = easeOut(clamp(p / A_END)); // slow phase
+  const fade = clamp((p - 0.6) / 0.2); // grey tile / lines dissolving
+  if (lines) lines.style.opacity = String(1 - clamp((p - 0.58) / 0.2));
+
   for (const el of els) {
     const m = el._m;
-    if (m.idx < 0) {
-      // the intro note: readable at the start, folds away as the cards arrive
-      const a = reduced ? 0 : 1 - clamp((p - 0.26) / 0.26);
-      el.style.opacity = String(a);
-      el.style.visibility = a <= 0.001 ? "hidden" : "visible";
-      el.style.pointerEvents = "none";
-      el.style.transform = `rotate(${m.r}deg) scale(${m.k * (1 - (1 - a) * 0.12)})`;
-    } else if (m.idx === 0) {
-      place(el, 1);
+    if (m.role === "start") {
+      el.style.opacity = String(1 - fade);
+      el.style.visibility = fade >= 1 ? "hidden" : "visible";
+      el.style.transform = `scale(${1 - 0.4 * fade})`;
+    } else if (m.role === "bg") {
+      el.style.opacity = String(0.61 * easeOut(clamp((p - 0.62) / 0.3)));
+    } else if (m.role === "smiley") {
+      const qs = easeInOut(clamp((p - ZOOM_FROM) / 0.34));
+      el.style.transform = `translate(${SMILEY.dx * (1 - qs)}px, ${SMILEY.dy * (1 - qs)}px) rotate(${360 * (1 - qs)}deg) scale(${lerp(SMILEY.k, 1, qs)})`;
     } else {
-      const d = 0.1 + m.idx * 0.045;
-      place(el, reduced ? 1 : easeOut(clamp((p - d) / 0.46)));
+      // card: slow drift from outside the frame, then the fast move to its place
+      const qb = easeInOut(clamp((p - A_END - Math.max(0, m.idx) * 0.006) / 0.32));
+      const d = p < A_END ? lerp(m.d0, m.dA, drift) : lerp(m.dA, m.len, qb);
+      const ox = m.ux * d - (m.cx - sw / 2), oy = m.uy * d - (m.cy - sh / 2);
+      el.style.transform = `translate(${ox}px, ${oy}px) rotate(${m.r + m.fr * (1 - qb)}deg) scale(${m.k})`;
+      el.style.pointerEvents = qb < 0.9 ? "none" : "";
     }
   }
-  cue.style.opacity = String(clamp(1 - p * 9));
-  skip.classList.toggle("gone", p > 0.94 || reduced);
 }
 
 function readProgress() {
