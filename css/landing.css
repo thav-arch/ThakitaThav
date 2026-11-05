@@ -385,3 +385,11 @@ a.row:hover .go { translate: 6px -6px; color: var(--lime); }
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
   .mq-track { animation: none; }
 }
+
+/* client logos in the footer strip */
+.mq-track li img { display: block; max-width: 150px; max-height: 31px; width: auto; height: auto; object-fit: contain; transition: scale .35s var(--spring); }
+.mq-track li:hover img { scale: 1.08; }
+.mq-track li.dark { background: #262626; }
+.mq-track li.dark img { max-height: 47px; max-width: 47px; }
+.mq-track li.dark:hover { background: #262626; }
+.mq-track li.txt { font: 600 20px/1 var(--sans); letter-spacing: -.02em; color: #e0245e; text-transform: lowercase; }
