@@ -17,6 +17,10 @@ const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// lower-powered devices (4 or fewer CPU cores, 4 GB or less memory, or Data Saver on) skip the soft card
+// shadows, the most expensive effect to draw, so the intro and hovers stay smooth (css/landing.css: html.lite)
+const lite = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4 || !!navigator.connection?.saveData;
+document.documentElement.classList.toggle("lite", lite);
 const narrow = matchMedia("(max-width: 899px)");
 
 const scene = $("[data-scene]");
@@ -102,6 +106,10 @@ function measure() {
 /* mobile: a card rises into place when it scrolls into view */
 function place(el, q) {
   const m = el._m;
+  // only touch the cards whose state changed since the last frame (most are settled or not yet in view)
+  const key = Math.round(q * 400);
+  if (m.q === key) return;
+  m.q = key;
   if (q >= 1) {
     el.style.transform = `rotate(${m.r}deg) scale(${m.k})`;
     el.style.opacity = "";
@@ -346,14 +354,23 @@ function toast(msg, ms = 2400) {
 
 /* ------------------------------------------------------------------ pointer tilt + per-card pointer effects */
 const finePointer = matchMedia("(hover: hover)").matches;
+// cards whose hover also moves pieces outside the card (cones, tapes): a class on the world instead of a
+// :has() selector, which made the browser re-check the whole board on every hover change
+const HOT = { "c-blogs": "hot-blogs", "c-resume": "hot-resume" };
 for (const card of $$(".tilt")) {
   const about = card.classList.contains("c-about");
   const gb = card.classList.contains("c-gb");
   const dpad = gb ? $(".gb-dpad", card) : null;
-  card.addEventListener("pointermove", (e) => {
-    if (e.pointerType === "touch" || reduced) return;
-    const r = card.getBoundingClientRect();
-    const px = clamp((e.clientX - r.left) / r.width), py = clamp((e.clientY - r.top) / r.height);
+  const hot = Object.entries(HOT).find(([c]) => card.classList.contains(c))?.[1];
+  const setHot = (on) => { if (hot) world.classList.toggle(hot, on); };
+  // pointer moves are applied at most once a frame, and the card / d-pad are measured once per hover
+  // (measuring right after a style change forced the browser to redo layout on every mouse event)
+  let rect = null, dRect = null, last = null, frame = 0;
+  const apply = () => {
+    frame = 0;
+    if (!last) return;
+    rect ||= card.getBoundingClientRect();
+    const px = clamp((last.x - rect.left) / rect.width), py = clamp((last.y - rect.top) / rect.height);
     card.classList.add("tracking");
     card.style.setProperty("--rx", `${((0.5 - py) * 7).toFixed(2)}deg`);
     card.style.setProperty("--ry", `${((px - 0.5) * 9).toFixed(2)}deg`);
@@ -362,13 +379,22 @@ for (const card of $$(".tilt")) {
       card.style.setProperty("--py", ((py - 0.5) * 2).toFixed(3));
     }
     if (dpad) {
-      const d = dpad.getBoundingClientRect();
-      const dx = e.clientX - (d.left + d.width / 2), dy = e.clientY - (d.top + d.height / 2);
-      if (Math.hypot(dx, dy) < 110) dpad.dataset.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
-      else delete dpad.dataset.dir;
+      dRect ||= dpad.getBoundingClientRect();
+      const dx = last.x - (dRect.left + dRect.width / 2), dy = last.y - (dRect.top + dRect.height / 2);
+      const dir = Math.hypot(dx, dy) < 110 ? (Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up") : "";
+      if ((dpad.dataset.dir || "") !== dir) { if (dir) dpad.dataset.dir = dir; else delete dpad.dataset.dir; }
     }
+  };
+  card.addEventListener("pointerenter", (e) => { if (e.pointerType !== "touch") { rect = dRect = null; setHot(true); } });
+  card.addEventListener("pointermove", (e) => {
+    if (e.pointerType === "touch" || reduced) return;
+    last = { x: e.clientX, y: e.clientY };
+    if (!frame) frame = requestAnimationFrame(apply);
   });
   const reset = () => {
+    cancelAnimationFrame(frame);
+    frame = 0; last = null; rect = dRect = null;
+    setHot(false);
     card.classList.remove("tracking");
     card.style.removeProperty("--rx");
     card.style.removeProperty("--ry");
@@ -377,12 +403,14 @@ for (const card of $$(".tilt")) {
     if (dpad) delete dpad.dataset.dir;
   };
   card.addEventListener("pointerleave", reset);
+  card.addEventListener("focus", () => { if (card.matches(":focus-visible")) setHot(true); });
   card.addEventListener("blur", reset);
   // touch has no hover: a tap plays the hover animation
   card.addEventListener("pointerdown", (e) => {
     if (e.pointerType !== "touch") return;
     card.classList.add("is-hot");
-    setTimeout(() => card.classList.remove("is-hot"), 1400);
+    setHot(true);
+    setTimeout(() => { card.classList.remove("is-hot"); setHot(false); }, 1400);
   });
 }
 
@@ -545,3 +573,19 @@ if (returning) {
   try { id = sessionStorage.getItem("tt-panel") || ""; sessionStorage.removeItem("tt-panel"); } catch {}
   if (id && PANELS[id]) openPanel(id, $(`[data-panel="${id}"]`));
 }
+
+/* ------------------------------------------------------------------ CV: start downloading on intent
+   The CV files only download when someone shows interest in the Resume card (hover, focus or touch), so the
+   PDF is usually ready by the time they pick a version, without costing every visitor the download. */
+let cvFetched = false;
+function prefetchCV() {
+  if (cvFetched || navigator.connection?.saveData) return;
+  cvFetched = true;
+  for (const href of ["resume/Thavanesh_TheGameDesigner.pdf", "resume/Thavanesh_TheExperienceDesigner.pdf"]) {
+    const l = document.createElement("link");
+    l.rel = "prefetch"; l.href = href; l.as = "document";
+    document.head.append(l);
+  }
+}
+const cvCard = $(".c-resume");
+for (const ev of ["pointerenter", "focus", "touchstart"]) cvCard?.addEventListener(ev, prefetchCV, { passive: true, once: true });
