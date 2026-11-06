@@ -41,11 +41,6 @@ const Z0 = 2; // the start screen (Figma 556:1033) is the board seen at 2x the w
 const A_END = 0.55, ZOOM_FROM = 0.58, ZOOM_LEN = 0.32;
 // the smiley on the start screen: screen (376,648) 103x105 at 2x  ->  world offset from its final spot, and size ratio
 const SMILEY = { dx: 720 + (376 + 51.5 - 720) / 2 - 706.99, dy: 512 + (648 + 52.5 - 512) / 2 - 497, k: 51.5 / 124 };
-// small pieces that sit on a card move with that card when the board spreads out on wide windows
-const ANCHOR = { tapeR1: "resume", tapeR2: "resume", cone1: "blogs", cone2: "blogs", basket: "about", tapeL: "about", plug: "phone" };
-// on windows wider than the frame the cards spread over 70% of the extra width (at most 40% of the frame),
-// so the collage stays close together; the rest is a slim margin of board background on each side
-const SPREAD = 0.7, SPREAD_MAX = 0.4;
 let vw = 0, vh = 0, sw = 1440, sh = 1024, fit = 1, mobile = false, S = 1, progress = 0;
 let S0 = 2, extraW = 0, cable = null;
 
@@ -64,17 +59,16 @@ function measure() {
   sw = num(wcs, "--sw", 1440);
   sh = num(wcs, "--sh", 1024);
   // phones: the vertical board fills the width. Desktop: the whole board, footer included, fits on one
-  // screen; on windows wider than the 1440 x 1024 frame the cards spread out to fill the extra width
+  // screen in the exact Figma composition; on windows wider than the 1440 x 1024 frame the board's
+  // background and the footer strip run on to the window edges
   fit = mobile ? vw / sw : Math.min(vw / sw, vh / sh);
   S0 = Z0 * (vw / sw); // the start screen matches the Figma frame across the window width
   extraW = mobile ? 0 : Math.max(0, vw / fit - sw);
-  const spreadW = Math.min(extraW * SPREAD, SPREAD_MAX * sw);
   const base = new Map();
   for (const el of els) {
     const cs = getComputedStyle(el);
     base.set(kind(el), { cs, cx: num(cs, "--cx") });
   }
-  const shiftOf = (k) => ((base.get(ANCHOR[k] || k)?.cx ?? sw / 2) / sw - 0.5) * spreadW;
   // half of the world area the zoomed-in camera sees at the start
   const hx = vw / (2 * S0), hy = vh / (2 * S0);
   for (const el of els) {
@@ -83,9 +77,7 @@ function measure() {
     const idx = el.dataset.fly === "none" || el.dataset.fly === undefined ? -1 : Number(el.dataset.fly);
     // the footer strip and the background run the full width of the window
     if (!mobile && (k0 === "footer" || k0 === "bg")) el.style.setProperty("--w", num(cs, "--w") + extraW);
-    const shift = mobile || k0 === "footer" || k0 === "bg" || k0 === "start" ? 0 : shiftOf(k0);
-    const fxp = cx + shift; // final centre
-    const vx = fxp - sw / 2, vy = cy - sh / 2, len = Math.hypot(vx, vy) || 1;
+    const vx = cx - sw / 2, vy = cy - sh / 2, len = Math.hypot(vx, vy) || 1;
     const ux = vx / len, uy = vy / len;
     const hw = (num(cs, "--w") / 2) * k, hh = (num(cs, "--h") / 2) * k;
     // distance along its own direction at which the card is fully outside the start frame (d0) and
@@ -93,16 +85,16 @@ function measure() {
     const edge = Math.min(Math.abs(ux) > 1e-6 ? hx / Math.abs(ux) : 1e9, Math.abs(uy) > 1e-6 ? hy / Math.abs(uy) : 1e9);
     const ext = Math.abs(ux) * hw + Math.abs(uy) * hh;
     el._m = {
-      cx, cy, r: num(cs, "--r"), k, idx, role: el.dataset.role || "", kind: k0, ux, uy, len, shift,
+      cx, cy, r: num(cs, "--r"), k, idx, role: el.dataset.role || "", kind: k0, ux, uy, len,
       d0: Math.max(len, edge + Math.hypot(hw, hh) + 40), dA: Math.max(len, edge + ext - 90),
       // mobile: a short rise from the side
       fx: cx < sw / 2 ? -46 : 46, fy: 110,
       fr: (cx < sw / 2 ? -1 : 1) * (mobile ? 9 : 6 + (idx % 3) * 3),
     };
   }
-  // the cable runs from the left edge of the window to the plug, which moves with the phone
+  // the cable runs on from the left edge of the window to the plug
   const cab = base.get("cable");
-  cable = cab && !mobile ? { dx: -extraW / 2, sx: (num(cab.cs, "--w") + shiftOf("plug") + extraW / 2) / num(cab.cs, "--w") } : null;
+  cable = cab && !mobile ? { dx: -extraW / 2, sx: (num(cab.cs, "--w") + extraW / 2) / num(cab.cs, "--w") } : null;
   viewport.style.height = mobile ? `${sh * fit}px` : `${vh}px`;
   setLock(!mobile && !reduced && progress < 1);
 }
@@ -153,7 +145,7 @@ function render() {
     if (m.role === "static") {
       // cable and plug: never animated, only placed for the window width
       if (m.kind === "cable" && cable) { el.style.transformOrigin = "0 50%"; el.style.transform = `translateX(${cable.dx}px) scaleX(${cable.sx})`; }
-      else el.style.transform = `translateX(${m.shift}px) rotate(${m.r}deg) scale(${m.k})`;
+      else el.style.transform = `rotate(${m.r}deg) scale(${m.k})`;
       continue;
     }
     if (m.role === "start") {
@@ -164,12 +156,12 @@ function render() {
       el.style.opacity = String(0.61 * easeOut(clamp((p - 0.62) / 0.3)));
     } else if (m.role === "smiley") {
       const qs = easeInOut(clamp((p - ZOOM_FROM) / 0.34));
-      el.style.transform = `translate(${SMILEY.dx * (1 - qs) + m.shift * qs}px, ${SMILEY.dy * (1 - qs)}px) rotate(${360 * (1 - qs)}deg) scale(${lerp(SMILEY.k, 1, qs)})`;
+      el.style.transform = `translate(${SMILEY.dx * (1 - qs)}px, ${SMILEY.dy * (1 - qs)}px) rotate(${360 * (1 - qs)}deg) scale(${lerp(SMILEY.k, 1, qs)})`;
     } else {
       // card: slow drift from outside the frame, then the fast move to its place
       const qb = easeInOut(clamp((p - A_END - Math.max(0, m.idx) * 0.006) / 0.32));
       const d = p < A_END ? lerp(m.d0, m.dA, drift) : lerp(m.dA, m.len, qb);
-      const ox = m.ux * d - (m.cx + m.shift - sw / 2) + m.shift, oy = m.uy * d - (m.cy - sh / 2);
+      const ox = m.ux * d - (m.cx - sw / 2), oy = m.uy * d - (m.cy - sh / 2);
       el.style.transform = `translate(${ox}px, ${oy}px) rotate(${m.r + m.fr * (1 - qb)}deg) scale(${m.k})`;
       el.style.pointerEvents = qb < 0.9 ? "none" : "";
     }
